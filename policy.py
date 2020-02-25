@@ -1,9 +1,11 @@
 from random import choice, random
 
-class Greedy():
-    """Epsilon-greedy (may be pure greedy) policy """
+Q = {""}
 
-    def __init__(self, actions, states, epsilon=0):
+class EpsilonGreedy():
+    """Epsilon-greedy policy """
+
+    def __init__(self, Q, epsilon=0):
         """
         Parameters
         ----------
@@ -15,13 +17,10 @@ class Greedy():
             number within [0, 1] specifying percentage of time the
             action shouild be taken randomly
         """
+
         self.epsilon = epsilon
         self.actions = actions
         self.states = states
-
-        initial_prob = 1.0 / len(self.actions)
-        self.Q = {state: {a: initial_prob for a in self.actions}
-                         for state in states}
 
     def decide(self, S):
         """Choose action according to the policy"""

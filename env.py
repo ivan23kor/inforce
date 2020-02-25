@@ -29,7 +29,7 @@ class Env:
     so every action deterministically leads to a state.
     """
 
-    def __init__(self, shape, goal, pits, actions=ACTIONS, R=R):
+    def __init__(self, shape, goal, pits, actions=ACTIONS, R=R, origin=[0, 0]):
         """
         Parameters
         ----------
@@ -47,12 +47,22 @@ class Env:
         # Make board
         self.shape = shape
         self.states = [(x, y) for x in range(shape[0]) for y in range(shape[1])]
+
+        # Set goal
         if not isinstance(goal, list):
             raise ValueError("Agrument goal should be a list, e.g.: [10, 10]")
+        if goal == origin:
+            raise ValueError("Goal cannot be the origin")
         self.goal = goal
+
+        # Set pits
         if not isinstance(pits, list) or not all((isinstance(el, list) for el in pits)):
             raise ValueError("Agrument pits should be a list of lists, e.g.: [[0, 2], [3, 4]]")
+        if any((pit == origin for pit in pits)):
+            raise ValueError("Pit cannot be the origin")
         self.pits = pits
+
+        self.origin = origin # Initially at origin
         self.actions = actions
         self.R = R # Rewards
 
@@ -60,6 +70,9 @@ class Env:
         cell_str = {"CELL": ".", "GOAL": "o", "PIT": "x"}
         ans = [" ".join(cell_str[cell] for cell in row) for row in self.cells]
         return "\n\n".join(ans)
+
+    def __set_goal__(self, goal):
+        pass
 
     def act(self, S, A):
         R = self.R["MOVE"]

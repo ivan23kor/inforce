@@ -1,5 +1,6 @@
 from policy import Greedy, Random
 from random import choice
+from tqdm import tqdm
 
 class OffPolicyMC(object):
     """Off-policy Monte Carlo conrol"""
@@ -67,11 +68,11 @@ class OnPolicyMC(object):
             episode.append((A, R, tuple(S)))
         return episode
 
-    def train(self):
+    def train(self, num_iter=100000):
         initial_prob = 1.0 / len(self.actions)
         b = Random(self.actions, self.states) # behavior policy
         C = {tuple(s): {a: 0 for a in self.actions} for s in self.states}
-        for _ in range(1000):
+        for _ in range(num_iter):
         # while True:
             G, W = 0, 1
             episode = self.generate_episode(b)
