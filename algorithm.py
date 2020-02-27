@@ -87,5 +87,3 @@ class OnPolicyMC(object):
                 # if self.p.decide(S)[1] != A:
                 #     break
                 W /= b.Q[S][A]
-
-        print(self.p.Q)
