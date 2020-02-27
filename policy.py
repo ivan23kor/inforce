@@ -30,6 +30,7 @@ class EpsilonGreedy():
             return choice(list(self.Q[S].keys()))
         else:
             return max(self.Q[S], key=self.Q[S].get)
+        self.decide = decide
 
 class Random(EpsilonGreedy):
     """100% random policy"""
