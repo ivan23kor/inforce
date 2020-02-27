@@ -47,6 +47,9 @@ class Env:
         # Make board
         self.shape = shape
         self.states = [(x, y) for x in range(shape[0]) for y in range(shape[1])]
+        self.origin = origin # Initially at origin
+        self.actions = actions
+        self.R = R # Rewards
 
         # Set goal
         if not isinstance(goal, list):
@@ -62,12 +65,8 @@ class Env:
             raise ValueError("Pit cannot be the origin")
         self.pits = pits
 
-        self.origin = origin # Initially at origin
-        self.actions = actions
-        self.R = R # Rewards
-
     def __str__(self):
-        cell_str = {"CELL": ".", "GOAL": "o", "PIT": "x"}
+        cell_str = {"AGENT": "^", "CELL": ".", "GOAL": "o", "PIT": "x"}
         ans = [" ".join(cell_str[cell] for cell in row) for row in self.cells]
         return "\n\n".join(ans)
 
