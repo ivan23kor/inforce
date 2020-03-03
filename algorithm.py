@@ -1,89 +1,90 @@
-from policy import Greedy, Random
+import matplotlib.pyplot as plt
+from copy import copy, deepcopy
+from env import RandomWalk, STANDARD_RANDOM_WALK
+from policy import EpsilonGreedy, Random
 from random import choice
 from tqdm import tqdm
 
-class OffPolicyMC(object):
-    """Off-policy Monte Carlo conrol"""
-    def __init__(self, actions, states, env, gamma=0.9, policy_epsilon=0.1):
-        self.actions = actions
-        self.states = states
+def q_diff(q1, q2):
+    ans = 0.0
+    for s in q1:
+        for a in q1[s]:
+            ans += abs(q1[s][a] - q2[s][a])
+    return ans
+
+class ROMC(object):
+    """Random behavior policy Off-policy Monte Carlo conrol"""
+    def __init__(self, env, gamma=0.1, policy_epsilon=0.1):
         self.env = env
         self.gamma = gamma
 
-        self.p = Greedy(actions, states, epsilon=policy_epsilon) # target policy
+        # Training variables
+        self._init_train()
 
-    def generate_episode(self, policy, S=[0, 0]):
-        if not S:
-            S = choice(self.states)
-        episode = [] # Return of the function: [(A_0, R_1, S_1), ...,
-                     #              (terminal)  (A_T-1, R_T, S_T)]
-        A = "empty_acton"
-        while S != self.env.goal:
-            A = policy.decide()
-            R, S = self.env.act(S, A)
-            episode.append((A, R, tuple(S)))
+    def _init_train(self):
+        init_prob = 1.0 / len(self.env.actions)
+        init_prob = 0.0
+        self.Q = {s: {a: init_prob for a in self.env.actions}
+                                   for s in self.env.states}
+        self.C = {s: {a: 0.0 for a in self.env.actions}
+                             for s in self.env.states}
+        self.G_history = []
+
+    def generate_episode(self, policy):
+        """Generate episode from the given origin following the policy"""
+        # Initial state
+        S, A = choice(self.env.states), "empty_acton"
+        self.env.move_agent(S)
+
+        episode = [] # --| Return of the function |-- [(A_0, R_1, S_0), ...,
+                     #                     (terminal)  (A_T-1, R_T, S_T-1)]
+        while not self.env.done():
+            A = policy.decide(S)
+            S_prev = S
+            R, S = self.env.move(A, move_agent=True)
+            episode.append((A, R, S_prev))
         return episode
 
-    def train(self):
-        initial_prob = 1.0 / len(self.actions)
-        b = Random(self.actions, self.states) # behavior policy
-        C = {tuple(s): {a: 0 for a in self.actions} for s in self.states}
-        for _ in range(1000):
-        # while True:
-            G, W = 0, 1
+    def train(self, p, b, num_iter=100000, disc_aware=False):
+        self._init_train()
+        self.q_diff = []
+
+        for _ in tqdm(range(num_iter)):
+            G, W = 0.0, 1.0
             episode = self.generate_episode(b)
+            initial_Q = deepcopy(p.Q)
             for (A, R, S) in episode[::-1]:
                 # G
                 G = self.gamma * G + R
+                self.G_history.append(G)
                 # C
-                C[S][A] += W
+                self.C[S][A] += W
                 # Q
-                self.p.Q[S][A] += W / C[S][A] * (G - self.p.Q[S][A])
-                # # Break if policy changed
-                # if self.p.decide(S)[1] != A:
-                #     break
-                W /= b.Q[S][A]
+                if not disc_aware:
+                    p.Q[S][A] += W / self.C[S][A] * (G - p.Q[S][A])
+                else:
+                    p.Q[S][A] += W / self.C[S][A] * (G - p.Q[S][A])
+                # Break if policy changed
+                if p.decide(S) != A:
+                    break
+                W *= len(self.env.actions)
+            self.q_diff.append(q_diff(initial_Q, p.Q))
 
-        print(self.p.Q)
+def print_Q(Q, shape):
+    for row in range(shape[0]):
+        for col in range(shape[1]):
+            best_action = max(Q[row * shape[1] + col].items(), key=lambda kv: kv[1])
+            print("\t{}|{:.1f}".format(best_action[0][0], best_action[1]), end="")
+        print("\n\n")
 
-class OnPolicyMC(object):
-    """Off-policy Monte Carlo conrol"""
-    def __init__(self, actions, states, env, gamma=0.9, policy_epsilon=0.1):
-        self.actions = actions
-        self.states = states
-        self.env = env
-        self.gamma = gamma
+if __name__ == "__main__":
+    env = RandomWalk(**STANDARD_RANDOM_WALK)
+    algorithm = ROMC(env, 0.9)
 
-        self.p = Greedy(actions, states, epsilon=policy_epsilon) # target policy
-
-    def generate_episode(self, policy, S=[0, 0]):
-        if not S:
-            S = choice(self.states)
-        episode = [] # Return of the function: [(A_0, R_1, S_1), ...,
-                     #              (terminal)  (A_T-1, R_T, S_T)]
-        A = "empty_acton"
-        while S != self.env.goal:
-            A = policy.decide()
-            R, S = self.env.act(S, A)
-            episode.append((A, R, tuple(S)))
-        return episode
-
-    def train(self, num_iter=100000):
-        initial_prob = 1.0 / len(self.actions)
-        b = Random(self.actions, self.states) # behavior policy
-        C = {tuple(s): {a: 0 for a in self.actions} for s in self.states}
-        for _ in range(num_iter):
-        # while True:
-            G, W = 0, 1
-            episode = self.generate_episode(b)
-            for (A, R, S) in episode[::-1]:
-                # G
-                G = self.gamma * G + R
-                # C
-                C[S][A] += W
-                # Q
-                self.p.Q[S][A] += W / C[S][A] * (G - self.p.Q[S][A])
-                # # Break if policy changed
-                # if self.p.decide(S)[1] != A:
-                #     break
-                W /= b.Q[S][A]
+    p = EpsilonGreedy(algorithm.Q, 0.0) # Target policy
+    b = Random(algorithm.Q) # Behavior policy
+    algorithm.train(p, b, num_iter=10000, disc_aware=False)
+    #algorithm.train(p, b, num_iter=10000, disc_aware=True)
+    print_Q(p.Q, env.shape)
+    # plt.plot(algorithm.q_diff)
+    # plt.show()
