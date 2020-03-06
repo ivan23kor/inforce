@@ -1,18 +1,10 @@
-# =============================================================================
-#
-#                                COPYRIGHT THING
-#
-#      IVAN KOROSTELEV DID THIS IN 2020, DO NOT COPY WITHOUT THIS HEADER
-#
-# =============================================================================
-
-import numpy as np
+from random import sample
 
 STANDARD_RANDOM_WALK = {
-    "shape": (4, 4),
-    "goal": 15,
+    "shape": (10, 10),
+    "goal": 99,
     # "pits": [],
-    "pits": [1, 3, 6],
+    "pits": sample(range(1, 99), 10),
     "actions": {"left": [0, -1], "up": [-1, 0], "right": [0, 1], "down": [1, 0]},
     "rewards": {
         "BORDER": -1, # Reward for hitting the border: do not move the agent and
@@ -55,7 +47,7 @@ class RandomWalk:
         self.rewards = rewards # Rewards
         self.agent_pos = agent_pos # Initially at agent_pos
 
-        self.states = np.arange(shape[0] * shape[1])
+        self.states = list(range(shape[0] * shape[1]))
 
     def __str__(self):
         cell_str = {"AGENT_POS": "^", "CELL": ".", "GOAL": "o", "PIT": "x"}
