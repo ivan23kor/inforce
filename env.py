@@ -2,9 +2,6 @@ from random import sample
 
 STANDARD_RANDOM_WALK = {
     "shape": (10, 10),
-    "goal": 99,
-    # "pits": [],
-    "pits": sample(range(1, 99), 10),
     "actions": {"left": [0, -1], "up": [-1, 0], "right": [0, 1], "down": [1, 0]},
     "rewards": {
         "BORDER": -1, # Reward for hitting the border: do not move the agent and
@@ -16,6 +13,10 @@ STANDARD_RANDOM_WALK = {
     },
     "agent_pos": 0,
 }
+STANDARD_RANDOM_WALK["goal"] = STANDARD_RANDOM_WALK["shape"][0]\
+                             * STANDARD_RANDOM_WALK["shape"][1] - 1
+STANDARD_RANDOM_WALK["pits"] = sample(range(1, STANDARD_RANDOM_WALK["goal"]),
+                                      STANDARD_RANDOM_WALK["shape"][0] // 2)
 
 class RandomWalk:
     """Environment provides lists of states and actions,
@@ -49,7 +50,7 @@ class RandomWalk:
 
         self.states = list(range(shape[0] * shape[1]))
 
-    def __str__(self):
+    def __repr__(self):
         cell_str = {"AGENT_POS": "^", "CELL": ".", "GOAL": "o", "PIT": "x"}
         # Normal cells
         ans = [cell_str["CELL"] for _ in self.states]
@@ -58,7 +59,7 @@ class RandomWalk:
             ans[pit] = cell_str["PIT"]
         ans[self.agent_pos] = cell_str["AGENT_POS"]
 
-        return "\n\n".join([" ".join(
+        return "\n".join(["  ".join(
             ans[i * self.shape[1]:(i + 1) * self.shape[1]])
             for i in range(self.shape[0])])
 

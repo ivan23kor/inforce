@@ -5,6 +5,7 @@ from policy import EpsilonGreedy, Random
 from tqdm import tqdm
 
 DEBUG = True
+OPTIMAL_Q = None
 
 class ROMC(object):
     """Random behavior policy Off-policy Monte Carlo conrol"""
@@ -44,9 +45,9 @@ class ROMC(object):
         self._init_train()
 
         if disc_aware:
-            self.train_disc_aware(p, b, num_iter, optimal_Q)
+            return self.train_disc_aware(p, b, num_iter, optimal_Q)
         else:
-            self.train_disc_unaware(p, b, num_iter, optimal_Q)
+            return self.train_disc_unaware(p, b, num_iter, optimal_Q)
 
     def train_disc_unaware(self, p, b, num_iter, optimal_Q):
         history = []
@@ -74,13 +75,13 @@ class ROMC(object):
                     break
                 W *= weight_A_S
 
-                if optimal_Q:
-                    history.append(q_diff(optimal_Q, self.Q))
+            if optimal_Q:
+                history.append(mean_sqerror(optimal_Q, self.Q))
 
         return history
 
-    def numerator(self, episode, p, b, t, last):
-        """Computes numerator from the formula (5.10), p. 113
+    def numerator(self, episode, t, last):
+        """Computes numerator for the formula (5.10), p. 113
         indexes t and last are 1-based
         All indexing over the episode is shifted by -1 as it is represented as a
         Python array.
@@ -93,20 +94,47 @@ class ROMC(object):
 
         # rho matrix
         weight_A_S = len(self.env.actions)
-        rho
-        rho = [v for _ in range(t, last + 1)]
+        rho = 1.0
 
         # First additive
         first = 0.0
         for h in range(t + 1, last + 1):
-            first += self.gamma**(h - t - 1)\
-                   * rho(t:h - 1)\
+            rho *= weight_A_S
+            first += self.gamma**(h - t - 1) * rho\
                    * sum(el[2] for el in episode[t - 1:h - 1])
 
+        rho *= weight_A_S
         # Second additive
-        second = self.gamma**(last - t)\
-               * rho(t:last)\
+        second = self.gamma**(last - t) * rho\
                * sum(el[2] for el in episode[t - 1:last])
+
+        return (1 - self.gamma) * first + second
+
+    def denominator(self, episode, t, last):
+        """Computes denominator for the formula (5.10), p. 113
+        indexes t and last are 1-based
+        All indexing over the episode is shifted by -1 as it is represented as a
+        Python array.
+        Powers are not shifted as they are 1-based integers
+
+        Observation for the greedy policy: rho(x:y) = weight_A_S ** (y - x + 1)
+        """
+        if t > last:
+            return 0.0
+
+        # rho matrix
+        weight_A_S = len(self.env.actions)
+        rho = 1.0
+
+        # First additive
+        first = 0.0
+        for h in range(t + 1, last + 1):
+            rho *= weight_A_S
+            first += self.gamma**(h - t - 1) * rho
+
+        rho *= weight_A_S
+        # Second additive
+        second = self.gamma**(last - t) * rho
 
         return (1 - self.gamma) * first + second
 
@@ -118,25 +146,35 @@ class ROMC(object):
 
         for _ in tqdm(range(num_iter)):
             # Per-episode inits
-            new_Q = {state: {"numerator": 0.0, "denominator": 0.0}
-                     for state in self.env.states}
+            new_Q = {state: {a: {"numerator": 0.0, "denominator": 0.0}
+                             for a in self.env.actions}
+                             for state in self.env.states}
             new_counts = {s: 0 for s in self.env.states}
             episode = self.generate_episode(b)
             last = len(episode)
             for (S, A, R) in episode:
-                print("{} {} + {} yields {}".format(n, S, A, R))
+                print("{} {} + {} yields {}".format(last, S, A, R))
                 if p.decide(self.Q[S]) != A:
-                    break
+                   continue 
                 new_counts[S] += 1
-                new_Q[S]["numerator"] += self.numerator(p, b, new_counts[S], last)
-        # print(new_Q)
+                new_Q[S]["numerator"] += self.numerator(episode, t, last)
+                new_Q[S]["denominator"] += self.denominator(episode, t, last)
+            print(new_Q)
 
-def q_diff(q1, q2):
+def plot_history(history, title=""):
+    plt.plot(history)
+    plt.title(title, fontsize=20)
+    plt.xlabel("Episode number", fontsize=15)
+    plt.ylabel("Mean squared error, Q <-> Q*", fontsize=15)
+    plt.show()
+
+def mean_sqerror(q1, q2):
     ans = 0.0
     for state in q1:
         for action in q1[state]:
             ans += (q1[state][action] - q2[state][action])**2
-    return ans**(0.5)
+    n = len(q1) * len(q1[list(q1.keys())[0]])
+    return ans / n
 
 def print_Q(Q, shape):
     for row in range(shape[0]):
@@ -145,30 +183,45 @@ def print_Q(Q, shape):
             print("\t{}|{:.1f}".format(best_action[0][0], best_action[1]), end="")
         print("\n\n")
 
-def eval_unaware(algorithm, p, b, num_iter):
+def eval(env, num_iter, gamma, disc_aware=False):
+    global OPTIMAL_Q
+
+    p = EpsilonGreedy(0.0)
+    b = Random()
+    algorithm = ROMC(env, gamma=gamma)
+
     # First train
-    print("First train:")
-    algorithm.train(p, b, num_iter)
+    print("Evaluating optimal value function.")
+    algorithm.train(p, b, num_iter, optimal_Q=None, disc_aware=disc_aware)
     optimal_Q = algorithm.Q
+    if not OPTIMAL_Q:
+        OPTIMAL_Q = optimal_Q
 
     # Second train
-    print("Second train:")
-    history = algorithm.train(p, b, num_iter, optimal_Q)
+    print("Tracking performance.")
+    history = algorithm.train(p, b, num_iter, OPTIMAL_Q, disc_aware=disc_aware)
 
     print("Best actions of Q:")
     print_Q(algorithm.Q, env.shape)
 
-    print("Training history:")
-    plt.plot(history)
-    plt.show()
+    #print("Showing training history.")
+    #plot_history(history,
+    #    "Monte Carlo (gamma={}) with\ndiscounting-{}aware importance sampling".format(
+    #    algorithm.gamma, "" if disc_aware else "un"))
+    return history
 
 if __name__ == "__main__":
-    env = RandomWalk(**STANDARD_RANDOM_WALK)
-    algorithm = ROMC(env, 0.9)
-    num_iter = 10000
+    params = STANDARD_RANDOM_WALK
+    params["pits"] = [1, 24, 26, 67, 73]
+    env = RandomWalk(**params)
+    print(env)
 
-    p = EpsilonGreedy(0.0) # Target policy
-    b = Random() # Behavior policy
-
-    # eval_unaware(algorithm, p, b, num_iter)
-    algorithm.train(p, b, 1, None, True)
+    for gamma, marker in zip([0.9, 0.7, 0.4, 0.1], ["x", "o", ".", "v"]):
+        plt.plot(eval(env, num_iter=500, gamma=gamma, disc_aware=False),
+                 label="gamma = {}".format(gamma), marker=marker)
+    plt.title("Monte Carlo off-policy control\nwith discounting unaware importance sampling",
+              fontsize=23)
+    plt.xlabel("Episode number", fontsize=15)
+    plt.ylabel("Mean squared error, Q <-> Q*", fontsize=15)
+    plt.legend(fontsize=20, loc="upper right")
+    plt.show()
