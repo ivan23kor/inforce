@@ -23,20 +23,24 @@ class EpsilonGreedy():
     def decide(self, Q_S):
         """Choose action according to the soft policy"""
         if random() <= self.epsilon:
-            return choice(list(Q_S.keys()))
+            return (choice(list(Q_S.keys())), self.epsilon / len(Q_S))
         else:
-            return max(Q_S, key=Q_S.get)
+            return (max(Q_S, key=Q_S.get), 1 - self.epsilon +
+                                           self.epsilon / len(Q_S))
 
     def __str__(self):
-        return "{}-greedy policy with value function:\n{}".format(self.epsilon, self.Q)
+        return "{}-greedy policy with value function:\n{}".format(self.epsilon,
+                                                                  self.Q)
+
+class Greedy(EpsilonGreedy):
+    """Greedy policy, 0% random actions"""
+    def __init__(self):
+        super().__init__(0.0)
 
 class Random(EpsilonGreedy):
-    """100% random policy"""
+    """Random policy, 100% random actions"""
     def __init__(self):
         super().__init__(1.0)
-
-    def decide(self, Q_S):
-        return choice(list(Q_S.keys()))
 
 if __name__ == "__main__":
     Q = {0: {"left": 1.0, "right": 0.0}, 1: {"left": 0.0, "right": 1.0}}

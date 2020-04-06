@@ -1,14 +1,14 @@
 from random import sample
 
 STANDARD_RANDOM_WALK = {
-    "shape": (10, 10),
+    "shape": (5, 5),
     "actions": {"left": [0, -1], "up": [-1, 0], "right": [0, 1], "down": [1, 0]},
     "rewards": {
         "BORDER": -1, # Reward for hitting the border: do not move the agent and
                       # give it this reward instead
-        "GOAL": 10,
+        "GOAL": 100,
         "MOVE": -1, # Action to a normal cell also costs something
-        "PIT": -10, # Covered with dirt, unpleasant to be in, but does not
+        "PIT": -100, # Covered with dirt, unpleasant to be in, but does not
                     # restart the agent to the origin
     },
     "agent_pos": 0,
@@ -16,7 +16,7 @@ STANDARD_RANDOM_WALK = {
 STANDARD_RANDOM_WALK["goal"] = STANDARD_RANDOM_WALK["shape"][0]\
                              * STANDARD_RANDOM_WALK["shape"][1] - 1
 STANDARD_RANDOM_WALK["pits"] = sample(range(1, STANDARD_RANDOM_WALK["goal"]),
-                                      STANDARD_RANDOM_WALK["shape"][0] // 2)
+                                      STANDARD_RANDOM_WALK["shape"][0])
 
 class RandomWalk:
     """Environment provides lists of states and actions,

@@ -1,7 +1,9 @@
-import algorithm as a
 import env as e
-import policy as p
+from control import ROMC
+from policy import Random
 env = e.RandomWalk(**e.STANDARD_RANDOM_WALK)
+print("Testing on the board:")
+print(env)
 """
 >>> env
 ^  .  .  .  .  .  .  .  .  .
@@ -15,9 +17,9 @@ env = e.RandomWalk(**e.STANDARD_RANDOM_WALK)
 .  .  .  .  .  .  .  .  .  .
 .  .  .  .  .  .  .  .  .  o
 """
-b = p.Random()          
-alg = a.ROMC(env, 0.9)
+b = Random()          
+control = ROMC(env, 0.9)
 l, N = 0.0, 1000
 for _ in range(N):
-    l += len(alg.generate_episode(b))
-print(l / N)
+    l += len(control.generate_episode(b))
+print("Average episode length is {}".format(l // N))

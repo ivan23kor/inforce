@@ -1,42 +1,35 @@
-from algorithm import OffPolicyMC
-from env import Env, ACTIONS
-from policy import Greedy, Random
+import matplotlib.pyplot as plt
 
-def func_info(func, *args):
-    def new_func(*args):
-        print("{} |\n{}".format(func.__name__, "-" * (len(func.__name__) + 2)))
-        func(*args)
-        print("-" * 80, end="\n\n")
-    return new_func
-
-@func_info
-def test_env():
-    env = Env((10, 10), [1, 0], [[0, 1], [0, 3], [8, 9]])
-    def print_act(R, S):
-        print("R: {}, S': {}".format(R, S))
-    print_act(*env.act([0, 0], "left"))
-    print_act(*env.act([0, 0], "right"))
-    print_act(*env.act([0, 0], "down"))
-
-@func_info
-def test_algorithm():
-    env = Env((3, 3), [2, 2], [[0, 1]])
-    actions = env.actions
-    states = env.states
-    algorithm = OffPolicyMC(actions, states, env)
-    algorithm.train()
-
-@func_info
-def test_random(n=10):
-    env = Env((10, 10), [1, 0], [[0, 1], [0, 3], [8, 9]])
-    actions = env.actions
-    states = env.states
-    Q = [[0, 0, 1, 0] for _ in states]
-    random_p = Random(actions)
-    for _ in range(n):
-        print(random_p.decide(Q, [0, 0]))
+from control import ROMC
+from env import RandomWalk, STANDARD_RANDOM_WALK
+from policy import Greedy, EpsilonGreedy, Random
 
 if __name__ == "__main__":
-    # test_env()
-    test_algorithm()
-    # test_random(7)
+    # Init env
+    params = STANDARD_RANDOM_WALK
+    params["pits"] = [5, 6, 11, 16, 22, 23]
+    env = RandomWalk(**params)
+    print(env)
+
+    # Init policies for control
+    p, b_epsilon_greedy, b_random = EpsilonGreedy(0.2), EpsilonGreedy(0.5), Random()
+    # Init control
+    control = ROMC(env)
+    # control.generate_episode(b_greedy)
+    # exit(0)
+
+    # Train and plot
+    # for gamma, marker in zip([0.9, 0.7, 0.4, 0.1], ["x", "o", ".", "v"]):
+    algorithm = "Weighted importance sampling (analytic)"
+    algorithm = "Weighted importance sampling"
+    for gamma, marker in zip([0.1], ["x"]):
+        control.gamma = gamma
+        plt.plot(control.eval(p, b_epsilon_greedy, num_avg=2, num_episodes=50000,
+                              algorithm=algorithm),
+                 label="gamma = {}".format(gamma), marker=marker, markersize=4)
+    plt.title("Monte Carlo off-policy control\n {}".format(algorithm),
+              fontsize=23)
+    plt.xlabel("Episode number", fontsize=15)
+    plt.ylabel("Mean squared error, Q vs Q*", fontsize=15)
+    plt.legend(fontsize=20, loc="upper right")
+    plt.show()
