@@ -2,7 +2,7 @@ from random import choice, random
 
 Q = {""}
 
-class EpsilonGreedy():
+class Soft():
     """Epsilon-greedy policy """
 
     def __init__(self, epsilon=0):
@@ -32,19 +32,27 @@ class EpsilonGreedy():
         return "{}-greedy policy with value function:\n{}".format(self.epsilon,
                                                                   self.Q)
 
-class Greedy(EpsilonGreedy):
+class FixedSoft(Soft):
+    def __init__(self, epsilon):
+        super().__setattr__('epsilon', epsilon)
+
+    def __setattr__(self, name, value):
+        raise ValueError("Can't change '{}' in an instance of {}".format(name,
+            self.__class__.__name__))
+
+class Greedy(FixedSoft):
     """Greedy policy, 0% random actions"""
     def __init__(self):
         super().__init__(0.0)
 
-class Random(EpsilonGreedy):
+class Random(FixedSoft):
     """Random policy, 100% random actions"""
     def __init__(self):
         super().__init__(1.0)
 
 if __name__ == "__main__":
     Q = {0: {"left": 1.0, "right": 0.0}, 1: {"left": 0.0, "right": 1.0}}
-    p = EpsilonGreedy(epsilon=0.2)
+    p = Soft(0.2)
     r = Random()
 
     def mini_test(p, s, n=10):
