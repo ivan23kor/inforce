@@ -1,6 +1,7 @@
-from control import ROMC
+import pickle
+from control import MC
 from env import RandomWalk, STANDARD_RANDOM_WALK
-from policy import Greedy, EpsilonGreedy, Random
+from policy import Greedy, Soft, Random
 
 if __name__ == "__main__":
     # Init env
@@ -10,13 +11,15 @@ if __name__ == "__main__":
     print(env)
 
     # Init policies for control
-    p, b_epsilon_greedy, b_random = EpsilonGreedy(0.2), EpsilonGreedy(0.5), Random()
+    p, b_soft, b_random = Greedy(), Soft(0.2), Random()
     # Init control
-    control = ROMC(env)
+    control = MC(env, 0.9)
 
     # Train and plot
+    #algorithm = "Weighted importance sampling (analytic)"
     algorithm = "Weighted importance sampling"
-    with open("log", "w") as f:
-        res = control.eval(p, b_epsilon_greedy, num_avg=2,
-                           num_episodes=1000, algorithm=algorithm)
-        f.write(str(res))
+    algorithm = "Discounting-aware importance sampling"
+    with open("log.pickle", "wb") as f:
+        res = control.eval(p, b_soft, num_avg=1,
+                           episodes=500000, algorithm=algorithm)
+        pickle.dump(res, f)

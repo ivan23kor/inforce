@@ -1,7 +1,7 @@
 from copy import deepcopy
 from tqdm import tqdm
 
-class ROMC(object):
+class MC(object):
     """Random behavior policy Off-policy Monte Carlo conrol"""
     def __init__(self, env, gamma=0.9):
         self.env = env
@@ -22,11 +22,7 @@ class ROMC(object):
         return "".join(ans)
 
     def _init_train(self):
-        init_prob = 1.0 / len(self.env.actions)
-        init_prob = 0.0
-        self.Q = {s: {a: init_prob for a in self.env.actions}
-                                   for s in self.env.states}
-        self.C = {s: {a: 0.0 for a in self.env.actions}
+        self.Q = {s: {a: 0.0 for a in self.env.actions}
                              for s in self.env.states}
 
     def mean_sqerror(self, q):
@@ -54,20 +50,21 @@ class ROMC(object):
             episode.append((S_prev, A, R, prob))
         return episode
 
-    def importance_sampling(self, p, b, num_iter, optimal_Q):
+    def importance_sampling(self, p, b, episodes, optimal_Q):
         history = []
-        for _ in tqdm(range(num_iter), desc="Episode"):
+        C = {s: {a: 0.0 for a in self.env.actions}
+                        for s in self.env.states}
+        for _ in tqdm(range(episodes), desc="Episode"):
+        # for _ in range(episodes):
             episode = self.generate_episode(b)
+            # print("Episode length: {}".format(len(episode)))
 
             # Training inits
             G, W = 0.0, 1.0
             for (S, A, R, prob) in episode[::-1]:
-                # G
                 G = self.gamma * G + R
-                # C
-                self.C[S][A] += W
-                # Q
-                self.Q[S][A] += W / self.C[S][A] * (G - self.Q[S][A])
+                C[S][A] += W
+                self.Q[S][A] += W / C[S][A] * (G - self.Q[S][A])
 
                 # Break if the coverage condition is not satisfied (p. 103)
                 if p.decide(self.Q[S])[0] != A:
@@ -79,26 +76,24 @@ class ROMC(object):
 
         return history
 
-    def importance_sampling_analytic(self, p, b, num_iter, optimal_Q):
+    def importance_sampling_analytic(self, p, b, episodes, optimal_Q):
         history = []
-        for _ in tqdm(range(num_iter), desc="Episode"):
+        numerator = {s: {a: 0.0 for a in self.env.actions}
+                                for s in self.env.states}
+        denominator = {s: {a: 0.0 for a in self.env.actions}
+                                  for s in self.env.states}
+        for _ in tqdm(range(episodes), desc="Episode"):
             episode = self.generate_episode(b)
 
             # Training inits
             G, rho = 0.0, 1.0
-            numerator = [[0.0 for a in self.env.actions]
-                              for s in self.env.states]
-            denominator = [[0.0 for a in self.env.actions]
-                              for s in self.env.states]
             for (S, A, R, prob) in episode[::-1]:
-                # G
                 G = self.gamma * G + R
-                # Q
                 numerator[S][A] += rho * G
                 denominator[S][A] += rho
                 self.Q[S][A] = numerator[S][A] / denominator[S][A]
 
-                # rho
+                # Break if the coverage condition is not satisfied (p. 103)
                 if p.decide(self.Q[S])[0] != A:
                     break
                 rho *= prob
@@ -108,18 +103,57 @@ class ROMC(object):
 
         return history
 
-    def train(self, p, b, num_iter=100000, optimal_Q=None, algorithm=None):
+    def disc_aware(self, p, b, episodes, optimal_Q):
+        history = []
+        numerator = {s: {a: 0.0 for a in self.env.actions}
+                                for s in self.env.states}
+        denominator = {s: {a: 0.0 for a in self.env.actions}
+                                  for s in self.env.states}
+        stop_breaking = int(0.9 * episodes)
+        for ep in tqdm(range(episodes), desc="Episode"):
+        # for _ in range(episodes):
+            episode = self.generate_episode(b)
+            T = len(episode)
+            if ep % 1000 == 0:
+                print("Episode length: {}".format(T))
+
+            for t in range(T - 1, -1, -1):
+                # print("t = {}".format(t))
+                S, A, R, prob = episode[t]
+
+                # left additive in the numenator of formula (5.10), page 113
+                numerator[S][A] += (1 - self.gamma) * sum(self.gamma**i * prob**(i + 1) * sum(R for _, _, R, _ in episode[t:i]) for i in range(T - t - 1))\
+                                 + self.gamma**(T - t - 1) * prob**(T - t) * sum(R for _, _, R, _ in episode[t:T])
+
+                # left additive in the denominator of formula (5.10), page 113
+                denominator[S][A] += (1 - self.gamma) * sum(self.gamma**i * prob**(i + 1) for i in range(T - t - 1))\
+                                   + self.gamma**(T - t - 1) * prob**(T - t)
+
+                # Q
+                self.Q[S][A] = numerator[S][A] / denominator[S][A]
+
+                # Break if the coverage condition is not satisfied (p. 103)
+                if p.decide(self.Q[S])[0] != A and ep < stop_breaking:
+                    break
+
+            if optimal_Q:
+                history.append(self.mean_sqerror(optimal_Q))
+
+        return history
+   
+    def train(self, p, b, episodes=100000, optimal_Q=None, algorithm=None):
         self._init_train()
 
         if algorithm == "Weighted importance sampling":
-            return self.importance_sampling(p, b, num_iter, optimal_Q)
+            return self.importance_sampling(p, b, episodes, optimal_Q)
         elif algorithm == "Weighted importance sampling (analytic)":
-            return self.importance_sampling_analytic(p, b, num_iter, optimal_Q)
-        # elif algorithm == "Discounting-aware importance sampling":
+            return self.importance_sampling_analytic(p, b, episodes, optimal_Q)
+        elif algorithm == "Discounting-aware importance sampling":
+            return self.disc_aware(p, b, episodes, optimal_Q)
         else:
             raise SystemExit(AttributeError("Algorithm {} is not implemented".format(algorithm)))
 
-    def eval(self, p, b, num_avg, num_episodes, algorithm=None):
+    def eval(self, p, b, num_avg, episodes, algorithm=None):
         def average_Qs(Qs):
             ans = {s: {a: 0.0 for a in self.env.actions}
                               for s in self.env.states}
@@ -133,19 +167,21 @@ class ROMC(object):
             return ans
 
         # Optimal
-        print("Evaluating optimal value function.")
-        Qs = []
-        for _ in tqdm(range(num_avg), desc="Averaging run #"):
-            self.train(p, b, num_episodes, optimal_Q=None, algorithm=algorithm)
-            Qs.append(deepcopy(self.Q))
-        optimal_Q = average_Qs(Qs)
+        # print("Evaluating optimal value function.")
+        # self.train(p, b, episodes, optimal_Q=None, algorithm=algorithm)
+        # optimal_Q = deepcopy(self.Q)
+        # Qs = []
+        # for _ in tqdm(range(num_avg), desc="Averaging run #"):
+        #     self.train(p, b, episodes, optimal_Q=None, algorithm=algorithm)
+        #     Qs.append(deepcopy(self.Q))
+        # optimal_Q = average_Qs(Qs)
 
         # Result
         print("\nTracking performance.")
         history = []
         Qs = []
         for _ in tqdm(range(num_avg), desc="Averaging"):
-            history.append(self.train(p, b, num_episodes, optimal_Q, algorithm=algorithm))
+            history.append(self.train(p, b, episodes, optimal_Q, algorithm=algorithm))
             Qs.append(deepcopy(self.Q))
         self.Q = average_Qs(Qs)
 

@@ -15,8 +15,8 @@ STANDARD_RANDOM_WALK = {
 }
 STANDARD_RANDOM_WALK["goal"] = STANDARD_RANDOM_WALK["shape"][0]\
                              * STANDARD_RANDOM_WALK["shape"][1] - 1
-STANDARD_RANDOM_WALK["pits"] = sample(range(1, STANDARD_RANDOM_WALK["goal"]),
-                                      STANDARD_RANDOM_WALK["shape"][0])
+STANDARD_RANDOM_WALK["pits"] = sample(range(1, STANDARD_RANDOM_WALK["goal"]), 8)
+                                      #STANDARD_RANDOM_WALK["shape"][0])
 
 class RandomWalk:
     """Environment provides lists of states and actions,
@@ -93,6 +93,7 @@ if __name__ == "__main__":
     env = RandomWalk(**STANDARD_RANDOM_WALK)
     print("Start:")
     print(env)
+    exit()
     for action in ["left", "down", "down", "down", "right", "up", "right",
                    "right", "right", "down"]:
         R, S = env.move(action)
