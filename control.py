@@ -109,14 +109,10 @@ class MC(object):
                                 for s in self.env.states}
         denominator = {s: {a: 0.0 for a in self.env.actions}
                                   for s in self.env.states}
-        stop_breaking = int(0.9 * episodes)
         for ep in tqdm(range(episodes), desc="Episode"):
         # for _ in range(episodes):
             episode = self.generate_episode(b)
             T = len(episode)
-            if ep % 1000 == 0:
-                print("Episode length: {}".format(T))
-
             for t in range(T - 1, -1, -1):
                 # print("t = {}".format(t))
                 S, A, R, prob = episode[t]
@@ -132,8 +128,8 @@ class MC(object):
                 # Q
                 self.Q[S][A] = numerator[S][A] / denominator[S][A]
 
-                # Break if the coverage condition is not satisfied (p. 103)
-                if p.decide(self.Q[S])[0] != A and ep < stop_breaking:
+                # Break if the coverage condition is not satisfied
+                if      p.decide(self.Q[S])[0] != A:
                     break
 
             if optimal_Q:
@@ -167,21 +163,16 @@ class MC(object):
             return ans
 
         # Optimal
-        # print("Evaluating optimal value function.")
-        # self.train(p, b, episodes, optimal_Q=None, algorithm=algorithm)
-        # optimal_Q = deepcopy(self.Q)
-        # Qs = []
-        # for _ in tqdm(range(num_avg), desc="Averaging run #"):
-        #     self.train(p, b, episodes, optimal_Q=None, algorithm=algorithm)
-        #     Qs.append(deepcopy(self.Q))
-        # optimal_Q = average_Qs(Qs)
+        print("Evaluating optimal value function.")
+        self.train(p, b, episodes, optimal_Q=None, algorithm=algorithm)
+        optimal_Q = deepcopy(self.Q)
 
         # Result
         print("\nTracking performance.")
         history = []
         Qs = []
         for _ in tqdm(range(num_avg), desc="Averaging"):
-            history.append(self.train(p, b, episodes, optimal_Q, algorithm=algorithm))
+            history.append(self.train(p, b, episodes // 40, optimal_Q, algorithm=algorithm))
             Qs.append(deepcopy(self.Q))
         self.Q = average_Qs(Qs)
 
@@ -191,4 +182,6 @@ class MC(object):
         for key, values in self.Q.items():
             print("{}: {}".format(key, values))
 
-        return [[el[i] for el in history] for i in range(len(history[0]))]
+        mean = lambda l: sum(l) / len(l)
+        return [mean([el[i] for el in history]) for i in range(len(history[0]))]
+        # return [[el[i] for el in history] for i in range(len(history[0]))]
